@@ -1,0 +1,5 @@
+pydicom==2.4.4
+opencv-python==4.9.0.80
+numpy==1.26.4
+torch==2.2.1
+pydantic-settings==2.2.1
