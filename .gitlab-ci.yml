@@ -1,0 +1,46 @@
+# GitLab CI/CD Configuration for Medical AI Platform
+
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  DOCKER_IMAGE_NAME: "medical-ai/dicom-service"
+  REGISTRY_URL: "registry.gitlab.com/achyutas-ai/medical-imaging-platform"
+
+# 1. Run unit tests on the FastAPI backend
+test-backend:
+  stage: test
+  image: python:3.11
+  script:
+    - cd control-plane
+    - pip install -r requirements.txt
+    - pip install pytest
+    - pytest tests/
+  only:
+    - main
+    - merge_requests
+
+# 2. Build and Push Docker image for the DICOM pipeline
+build-dicom:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $REGISTRY_URL/$DOCKER_IMAGE_NAME:$CI_COMMIT_SHORT_SHA -f infra-mgmt/Dockerfile.dicom .
+    - docker push $REGISTRY_URL/$DOCKER_IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+  only:
+    - main
+
+# 3. Manual Stage: Update 'ISO Builder' image with the latest model weights
+deploy-to-edge:
+  stage: deploy
+  script:
+    - chmod +x infra-mgmt/scripts/update_iso_builder.sh
+    - ./infra-mgmt/scripts/update_iso_builder.sh --weights-version $CI_COMMIT_SHORT_SHA
+  when: manual
+  only:
+    - main
